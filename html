@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>PunchPoint — Attendance Tracker</title>
+
+<!-- Firebase (compat SDK — works without a build step) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --ink:#12141a;
+  --panel:#1b1e26;
+  --panel-2:#22262f;
+  --line:#2e333e;
+  --paper:#eef0f3;
+  --dim:#9aa1af;
+  --amber:#ff9d2f;
+  --amber-dim:#7a5323;
+  --green:#3ecf6b;
+  --green-dim:#173c26;
+  --red:#ff5d5d;
+  --red-dim:#3c1717;
+  --teal:#2dd4bf;
+  --font-display:'Space Grotesk', 'Segoe UI', sans-serif;
+  --font-body:'Inter', 'Segoe UI', sans-serif;
+  --font-mono:'JetBrains Mono', 'Courier New', monospace;
+  --radius:14px;
+}
+@font-face{font-family:'Space Grotesk';src:local('Space Grotesk');}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--ink);
+  color:var(--paper);
+  font-family:var(--font-body);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
+
+button{font-family:inherit;cursor:pointer;}
+input,select{font-family:inherit;}
+a{color:var(--amber);}
+
+/* ============ LAYOUT SHELL ============ */
+#app{max-width:1100px;margin:0 auto;padding:0 18px 60px;}
+.hidden{display:none !important;}
+
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 0 16px;border-bottom:1px solid var(--line);
+  margin-bottom:22px;position:sticky;top:0;background:var(--ink);z-index:20;
+}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand .dot{
+  width:12px;height:12px;border-radius:50%;
+  background:var(--amber);box-shadow:0 0 12px var(--amber);
+}
+.brand h1{
+  font-family:var(--font-display);font-size:19px;font-weight:700;
+  letter-spacing:0.2px;margin:0;
+}
+.brand small{display:block;color:var(--dim);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;margin-top:1px;}
+.who{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--dim);}
+.who b{color:var(--paper);}
+.badge{
+  font-family:var(--font-mono);font-size:10px;padding:3px 8px;border-radius:20px;
+  border:1px solid var(--amber-dim);color:var(--amber);text-transform:uppercase;letter-spacing:1px;
+}
+.logout-btn{
+  background:transparent;border:1px solid var(--line);color:var(--dim);
+  padding:7px 14px;border-radius:8px;font-size:12px;transition:.15s;
+}
+.logout-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* ============ CARDS ============ */
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:22px;margin-bottom:18px;
+}
+.card h2{
+  font-family:var(--font-display);font-size:14px;font-weight:600;
+  text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin:0 0 16px;
+}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+@media(max-width:760px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+
+/* ============ LOGIN ============ */
+.login-wrap{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;padding:20px;
+}
+.login-card{
+  width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);padding:32px 28px;
+}
+.login-logo{text-align:center;margin-bottom:26px;}
+.login-logo .dot{
+  width:16px;height:16px;border-radius:50%;background:var(--amber);
+  box-shadow:0 0 20px var(--amber);margin:0 auto 12px;
+}
+.login-logo h1{font-family:var(--font-display);font-size:24px;margin:0;}
+.login-logo p{color:var(--dim);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.field input,.field select{
+  width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--paper);
+  padding:11px 13px;border-radius:9px;font-size:14px;outline:none;transition:.15s;
+}
+.field input:focus,.field select:focus{border-color:var(--amber);}
+.btn{
+  width:100%;padding:12px;border-radius:9px;border:none;font-weight:600;font-size:14px;
+  letter-spacing:.3px;transition:.15s;
+}
+.btn-primary{background:var(--amber);color:#1a1305;}
+.btn-primary:hover{filter:brightness(1.08);}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+.btn-outline{background:transparent;border:1px solid var(--line);color:var(--paper);}
+.btn-outline:hover{border-color:var(--amber);color:var(--amber);}
+.error-msg{
+  background:var(--red-dim);border:1px solid #5a2323;color:#ff8f8f;
+  padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:14px;
+}
+.hint{color:var(--dim);font-size:11.5px;margin-top:16px;line-height:1.6;text-align:center;}
+
+/* ============ CLOCK PANEL ============ */
+.clock-hero{
+  text-align:center;padding:30px 20px;
+}
+.clock-time{
+  font-family:var(--font-mono);font-size:52px;font-weight:700;letter-spacing:1px;
+  color:var(--paper);line-height:1;
+}
+.clock-date{color:var(--dim);font-size:13px;margin-top:8px;letter-spacing:.5px;}
+.status-pill{
+  display:inline-flex;align-items:center;gap:7px;margin:18px auto 24px;
+  padding:7px 16px;border-radius:30px;font-size:12px;font-weight:600;
+  text-transform:uppercase;letter-spacing:1px;
+}
+.status-pill.in{background:var(--green-dim);color:var(--green);border:1px solid #1f5c37;}
+.status-pill.out{background:var(--panel-2);color:var(--dim);border:1px solid var(--line);}
+.status-pill .blip{width:7px;height:7px;border-radius:50%;background:currentColor;}
+.status-pill.in .blip{box-shadow:0 0 8px var(--green);animation:pulse 1.6s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+.punch-btn{
+  width:170px;height:170px;border-radius:50%;border:none;
+  font-family:var(--font-display);font-size:20px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin:0 auto;
+  transition:.2s;box-shadow:0 0 0 6px rgba(255,255,255,.03);
+}
+.punch-btn.punch-in{background:var(--green);color:#04160a;}
+.punch-btn.punch-out{background:var(--red);color:#1c0505;}
+.punch-btn:disabled{opacity:.45;cursor:not-allowed;}
+.punch-btn:not(:disabled):hover{transform:scale(1.03);}
+.punch-sub{color:var(--dim);font-size:11.5px;margin-top:14px;}
+
+.loc-row{
+  display:flex;align-items:flex-start;gap:10px;background:var(--panel-2);
+  border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:18px;
+  font-size:12.5px;color:var(--dim);text-align:left;
+}
+.loc-row .ico{color:var(--amber);flex-shrink:0;}
+.loc-row b{color:var(--paper);}
+.loc-coords{font-family:var(--font-mono);font-size:11px;color:var(--dim);margin-top:2px;}
+
+.stat-box{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;}
+.stat-box .num{font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--amber);}
+.stat-box .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:4px;}
+
+/* ============ TABLES ============ */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{
+  text-align:left;color:var(--dim);font-size:10.5px;text-transform:uppercase;
+  letter-spacing:1px;padding:9px 10px;border-bottom:1px solid var(--line);font-weight:600;
+}
+td{padding:11px 10px;border-bottom:1px solid var(--line);color:var(--paper);}
+tr:last-child td{border-bottom:none;}
+.mono{font-family:var(--font-mono);font-size:12.5px;}
+.tbl-wrap{overflow-x:auto;}
+.tag{padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+.tag.in{background:var(--green-dim);color:var(--green);}
+.tag.out{background:var(--panel-2);color:var(--dim);}
+.tag.admin{background:var(--amber-dim);color:var(--amber);}
+.tag.agent{background:var(--panel-2);color:var(--teal);}
+.empty-row{text-align:center;color:var(--dim);padding:26px 10px;font-size:13px;}
+
+/* ============ TABS ============ */
+.tabs{display:flex;gap:6px;margin-bottom:20px;border-bottom:1px solid var(--line);}
+.tab-btn{
+  background:transparent;border:none;color:var(--dim);padding:11px 4px;margin-right:22px;
+  font-size:13px;font-weight:600;border-bottom:2px solid transparent;transition:.15s;
+}
+.tab-btn.active{color:var(--amber);border-color:var(--amber);}
+@media(max-width:640px){.tabs{overflow-x:auto;}.tab-btn{margin-right:16px;white-space:nowrap;}}
+
+/* ============ MISC ============ */
+.row-between{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.small-btn{
+  background:var(--panel-2);border:1px solid var(--line);color:var(--paper);
+  padding:8px 14px;border-radius:8px;font-size:12.5px;transition:.15s;
+}
+.small-btn:hover{border-color:var(--amber);color:var(--amber);}
+.small-btn.primary{background:var(--amber);color:#1a1305;border-color:var(--amber);font-weight:600;}
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  background:var(--panel-2);border:1px solid var(--line);padding:12px 20px;border-radius:10px;
+  font-size:13px;z-index:100;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;
+  transition:opacity .25s, transform .25s;pointer-events:none;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+.toast.ok{border-color:#1f5c37;color:var(--green);}
+.toast.err{border-color:#5a2323;color:#ff8f8f;}
+.spin{
+  width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.2);
+  border-top-color:var(--amber);animation:spin .7s linear infinite;display:inline-block;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.setup-note{
+  background:var(--panel-2);border:1px dashed var(--amber-dim);border-radius:10px;
+  padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;margin-bottom:16px;
+}
+.setup-note code{background:var(--ink);color:var(--amber);padding:1px 5px;border-radius:4px;}
+.filter-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.filter-row input,.filter-row select{
+  background:var(--panel-2);border:1px solid var(--line);color:var(--paper);
+  padding:8px 12px;border-radius:8px;font-size:12.5px;
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="view-login" class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="dot"></div>
+        <h1>PunchPoint</h1>
+        <p>Field Attendance System</p>
+      </div>
+      <div id="login-error" class="error-msg hidden"></div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="you@company.com" autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" id="login-btn">Log In</button>
+      <p class="hint">Ask your admin for login credentials.<br>Agents &amp; Admins use the same login screen.</p>
+    </div>
+  </div>
+
+  <!-- ===================== AGENT VIEW ===================== -->
+  <div id="view-agent" class="hidden">
+    <div class="topbar">
+      <div class="brand"><div class="dot"></div><div><h1>PunchPoint</h1><small>Agent Console</small></div></div>
+      <div class="who">
+        <span><b id="agent-name-tag">—</b> · <span id="agent-id-tag">—</span></span>
+        <button class="logout-btn" id="logout-btn-agent">Log Out</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="clock-hero">
+        <div class="clock-time" id="live-clock">--:--:--</div>
+        <div class="clock-date" id="live-date">—</div>
+        <div id="status-pill" class="status-pill out"><span class="blip"></span><span id="status-text">Clocked Out</span></div>
+        <div>
+          <button id="punch-btn" class="punch-btn punch-in">Clock In</button>
+        </div>
+        <div class="punch-sub" id="punch-sub">Tap to record your GPS location and start your shift.</div>
+
+        <div class="loc-row hidden" id="loc-row">
+          <span class="ico">📍</span>
+          <div>
+            <div><b id="loc-address">Fetching location…</b></div>
+            <div class="loc-coords" id="loc-coords"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="stat-box"><div class="num" id="stat-today">0h 0m</div><div class="lbl">Today</div></div>
+      <div class="stat-box"><div class="num" id="stat-week">0h 0m</div><div class="lbl">This Week</div></div>
+      <div class="stat-box"><div class="num" id="stat-days">0</div><div class="lbl">Days Logged</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Attendance History</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Hours</th><th>Status</th></tr></thead>
+          <tbody id="agent-history-body"><tr><td class="empty-row" colspan="5">No records yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== ADMIN VIEW ===================== -->
+  <div id="view-admin" class="hidden">
+    <div class="topbar">
+      <div class="brand"><div class="dot"></div><div><h1>PunchPoint</h1><small>Admin Dashboard</small></div></div>
+      <div class="who">
+        <span><b id="admin-name-tag">—</b></span>
+        <span class="badge">Admin</span>
+        <button class="logout-btn" id="logout-btn-admin">Log Out</button>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="stat-box"><div class="num" id="admin-stat-agents">0</div><div class="lbl">Total Agents</div></div>
+      <div class="stat-box"><div class="num" id="admin-stat-active">0</div><div class="lbl">Clocked In Now</div></div>
+      <div class="stat-box"><div class="num" id="admin-stat-today">0</div><div class="lbl">Punches Today</div></div>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="add">+ Add Agent</button>
+        <button class="tab-btn" data-tab="agents">Agent List</button>
+        <button class="tab-btn" data-tab="attendance">All Attendance</button>
+      </div>
+
+      <!-- Add Agent -->
+      <div id="tab-add" class="tab-panel">
+        <div id="add-agent-error" class="error-msg hidden"></div>
+        <div id="add-agent-ok" class="hidden" style="background:var(--green-dim);border:1px solid #1f5c37;color:var(--green);padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:14px;"></div>
+        <div class="grid-2">
+          <div class="field"><label>Full Name</label><input id="na-name" placeholder="e.g. Priya Sharma"></div>
+          <div class="field"><label>Employee ID</label><input id="na-empid" placeholder="e.g. EMP-1042"></div>
+          <div class="field"><label>Email</label><input id="na-email" type="email" placeholder="agent@company.com"></div>
+          <div class="field"><label>Temporary Password</label><input id="na-password" type="text" placeholder="min 6 characters"></div>
+          <div class="field"><label>Role</label>
+            <select id="na-role"><option value="agent">Agent</option><option value="admin">Admin</option></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="add-agent-btn" style="width:auto;padding:11px 24px;">Create Agent Account</button>
+      </div>
+
+      <!-- Agent List -->
+      <div id="tab-agents" class="tab-panel hidden">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Employee ID</th><th>Email</th><th>Role</th></tr></thead>
+            <tbody id="agents-list-body"><tr><td class="empty-row" colspan="4">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- All Attendance -->
+      <div id="tab-attendance" class="tab-panel hidden">
+        <div class="row-between filter-row">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <input type="date" id="filt-date">
+            <input type="text" id="filt-search" placeholder="Search name or employee ID">
+          </div>
+          <button class="small-btn primary" id="export-csv-btn">↓ Export CSV</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Agent</th><th>Emp ID</th><th>Clock In</th><th>In Location</th><th>Clock Out</th><th>Out Location</th><th>Hours</th><th>Status</th></tr></thead>
+            <tbody id="all-attendance-body"><tr><td class="empty-row" colspan="9">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* =====================================================================
+   FIREBASE CONFIG — replace with your own project's config.
+   Firebase Console → Project Settings → General → Your apps → SDK setup
+   Enable: Authentication (Email/Password) + Cloud Firestore
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+// Secondary app instance so admin can create new agent accounts
+// without Firebase Auth switching the current session to the new user.
+const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let currentUser = null;
+let currentProfile = null;
+let liveTicker = null;
+let clockGeo = null; // {lat, lng, address} captured for the pending punch
+
+/* ---------------- helpers ---------------- */
+function $(id){ return document.getElementById(id); }
+function show(el){ el.classList.remove('hidden'); }
+function hide(el){ el.classList.add('hidden'); }
+
+function toast(msg, kind){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (kind || '');
+  setTimeout(()=>{ t.classList.remove('show'); }, 3200);
+}
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function fmtTime(d){
+  return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+}
+function fmtClock12(d){
+  let h = d.getHours(), m = d.getMinutes();
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if(h===0) h=12;
+  return pad(h)+':'+pad(m)+' '+ap;
+}
+function fmtDate(d){
+  return d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', year:'numeric'});
+}
+function dateKey(d){
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+function hoursFmt(hoursDecimal){
+  if(hoursDecimal == null) return '—';
+  const h = Math.floor(hoursDecimal);
+  const m = Math.round((hoursDecimal - h) * 60);
+  return h+'h '+m+'m';
+}
+
+/* ---------------- live clock ---------------- */
+function startTicker(){
+  if(liveTicker) clearInterval(liveTicker);
+  liveTicker = setInterval(()=>{
+    const now = new Date();
+    if($('live-clock')) $('live-clock').textContent = fmtTime(now);
+    if($('live-date')) $('live-date').textContent = fmtDate(now);
+  }, 1000);
+}
+
+/* ---------------- geolocation + reverse geocode ---------------- */
+function captureLocation(){
+  return new Promise((resolve, reject)=>{
+    if(!navigator.geolocation){ reject(new Error('Geolocation not supported by this browser.')); return; }
+    navigator.geolocation.getCurrentPosition(async (pos)=>{
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      let address = 'Address unavailable';
+      try{
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`);
+        const data = await res.json();
+        if(data && data.display_name) address = data.display_name;
+      }catch(e){ /* keep fallback address */ }
+      resolve({lat, lng, address});
+    }, (err)=>{
+      reject(new Error('Location permission denied or unavailable.'));
+    }, { enableHighAccuracy:true, timeout:10000 });
+  });
+}
+
+/* ===================== AUTH ===================== */
+$('login-btn').addEventListener('click', doLogin);
+$('login-password').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+async function doLogin(){
+  const email = $('login-email').value.trim();
+  const password = $('login-password').value;
+  hide($('login-error'));
+  if(!email || !password){ $('login-error').textContent='Enter both email and password.'; show($('login-error')); return; }
+  $('login-btn').disabled = true; $('login-btn').textContent = 'Logging in…';
+  try{
+    await auth.signInWithEmailAndPassword(email, password);
+    // onAuthStateChanged will route the user
+  }catch(err){
+    $('login-error').textContent = friendlyAuthError(err);
+    show($('login-error'));
+  }finally{
+    $('login-btn').disabled = false; $('login-btn').textContent = 'Log In';
+  }
+}
+
+function friendlyAuthError(err){
+  const c = err.code || '';
+  if(c.includes('user-not-found') || c.includes('wrong-password') || c.includes('invalid-credential')) return 'Incorrect email or password.';
+  if(c.includes('too-many-requests')) return 'Too many attempts. Try again later.';
+  if(c.includes('invalid-email')) return 'That email address looks invalid.';
+  if(c.includes('api-key') || c.includes('configuration-not-found')) return 'Firebase is not configured yet — set firebaseConfig at the top of this file.';
+  return err.message || 'Login failed.';
+}
+
+$('logout-btn-agent').addEventListener('click', ()=>auth.signOut());
+$('logout-btn-admin').addEventListener('click', ()=>auth.signOut());
+
+auth.onAuthStateChanged(async (user)=>{
+  if(!user){
+    currentUser = null; currentProfile = null;
+    hide($('view-agent')); hide($('view-admin')); show($('view-login'));
+    return;
+  }
+  currentUser = user;
+  try{
+    const doc = await db.collection('agents').doc(user.uid).get();
+    if(!doc.exists){
+      toast('No agent profile found for this account. Contact your admin.', 'err');
+      await auth.signOut();
+      return;
+    }
+    currentProfile = doc.data();
+    hide($('view-login'));
+    startTicker();
+    if(currentProfile.role === 'admin'){
+      hide($('view-agent')); show($('view-admin'));
+      initAdminView();
+    }else{
+      hide($('view-admin')); show($('view-agent'));
+      initAgentView();
+    }
+  }catch(err){
+    toast('Error loading profile: '+err.message, 'err');
+  }
+});
+
+/* ===================== AGENT VIEW ===================== */
+let todayAttendanceDoc = null; // {id, data} of today's open/closed record
+
+async function initAgentView(){
+  $('agent-name-tag').textContent = currentProfile.name || '—';
+  $('agent-id-tag').textContent = currentProfile.employeeId || '—';
+  await refreshTodayStatus();
+  await loadAgentHistory();
+}
+
+async function refreshTodayStatus(){
+  const today = dateKey(new Date());
+  const snap = await db.collection('attendance')
+    .where('uid','==', currentUser.uid)
+    .where('date','==', today)
+    .limit(1).get();
+
+  const btn = $('punch-btn');
+  const pill = $('status-pill');
+  const pillText = $('status-text');
+  const sub = $('punch-sub');
+  hide($('loc-row'));
+
+  if(snap.empty){
+    todayAttendanceDoc = null;
+    btn.textContent = 'Clock In'; btn.className='punch-btn punch-in'; btn.disabled=false;
+    pill.className='status-pill out'; pillText.textContent='Clocked Out';
+    sub.textContent='Tap to record your GPS location and start your shift.';
+  }else{
+    const d = snap.docs[0];
+    todayAttendanceDoc = { id: d.id, data: d.data() };
+    if(todayAttendanceDoc.data.status === 'in'){
+      btn.textContent='Clock Out'; btn.className='punch-btn punch-out'; btn.disabled=false;
+      pill.className='status-pill in'; pillText.textContent='Clocked In';
+      sub.textContent='Working since '+ fmtClock12(todayAttendanceDoc.data.clockIn.time.toDate());
+      showLocRow(todayAttendanceDoc.data.clockIn);
+    }else{
+      btn.textContent='Shift Complete'; btn.className='punch-btn punch-out'; btn.disabled=true;
+      pill.className='status-pill out'; pillText.textContent='Clocked Out';
+      sub.textContent='You already completed your shift today.';
+      showLocRow(todayAttendanceDoc.data.clockOut);
+    }
+  }
+  computeAgentStats();
+}
+
+function showLocRow(pt){
+  if(!pt) return;
+  $('loc-address').textContent = pt.address || 'Address unavailable';
+  $('loc-coords').textContent = `${pt.lat.toFixed(5)}, ${pt.lng.toFixed(5)}`;
+  show($('loc-row'));
+}
+
+$('punch-btn').addEventListener('click', async ()=>{
+  const btn = $('punch-btn');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.innerHTML = '<span class="spin"></span>';
+  $('punch-sub').textContent = 'Getting your GPS location…';
+
+  try{
+    const loc = await captureLocation();
+    const now = firebase.firestore.Timestamp.now();
+
+    if(!todayAttendanceDoc){
+      // CLOCK IN — create new record
+      const record = {
+        uid: currentUser.uid,
+        name: currentProfile.name,
+        employeeId: currentProfile.employeeId,
+        date: dateKey(new Date()),
+        clockIn: { time: now, lat: loc.lat, lng: loc.lng, address: loc.address },
+        clockOut: null,
+        workingHours: null,
+        status: 'in'
+      };
+      const ref = await db.collection('attendance').add(record);
+      todayAttendanceDoc = { id: ref.id, data: record };
+      toast('Clocked in successfully.', 'ok');
+    }else{
+      // CLOCK OUT — update existing record
+      const clockInDate = todayAttendanceDoc.data.clockIn.time.toDate();
+      const hours = (now.toDate() - clockInDate) / 36e5;
+      await db.collection('attendance').doc(todayAttendanceDoc.id).update({
+        clockOut: { time: now, lat: loc.lat, lng: loc.lng, address: loc.address },
+        workingHours: hours,
+        status: 'out'
+      });
+      toast('Clocked out. Have a good one!', 'ok');
+    }
+    await refreshTodayStatus();
+    await loadAgentHistory();
+  }catch(err){
+    toast(err.message || 'Something went wrong.', 'err');
+    btn.textContent = original;
+    btn.disabled = false;
+    $('punch-sub').textContent = 'Tap to try again.';
+  }
+});
+
+async function loadAgentHistory(){
+  const body = $('agent-history-body');
+  body.innerHTML = '<tr><td class="empty-row" colspan="5">Loading…</td></tr>';
+  const snap = await db.collection('attendance')
+    .where('uid','==', currentUser.uid)
+    .orderBy('date','desc').limit(60).get();
+
+  if(snap.empty){ body.innerHTML = '<tr><td class="empty-row" colspan="5">No records yet.</td></tr>'; return; }
+
+  let rows = '';
+  snap.forEach(doc=>{
+    const r = doc.data();
+    const inT = r.clockIn ? fmtClock12(r.clockIn.time.toDate()) : '—';
+    const outT = r.clockOut ? fmtClock12(r.clockOut.time.toDate()) : '—';
+    rows += `<tr>
+      <td>${r.date}</td>
+      <td class="mono">${inT}</td>
+      <td class="mono">${outT}</td>
+      <td class="mono">${hoursFmt(r.workingHours)}</td>
+      <td><span class="tag ${r.status}">${r.status==='in'?'In Progress':'Complete'}</span></td>
+    </tr>`;
+  });
+  body.innerHTML = rows;
+
+  computeAgentStats(snap);
+}
+
+function computeAgentStats(snap){
+  // recompute from the freshest history query if provided; else quick pull
+  if(!snap){
+    db.collection('attendance').where('uid','==', currentUser.uid).orderBy('date','desc').limit(60).get()
+      .then(s=>computeAgentStats(s));
+    return;
+  }
+  let todayHours = 0, weekHours = 0, daysLogged = 0;
+  const today = dateKey(new Date());
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 6*86400000);
+
+  snap.forEach(doc=>{
+    const r = doc.data();
+    daysLogged++;
+    const h = r.workingHours != null ? r.workingHours
+      : (r.status==='in' ? (now - r.clockIn.time.toDate())/36e5 : 0);
+    if(r.date === today) todayHours += h;
+    const rd = new Date(r.date+'T00:00:00');
+    if(rd >= new Date(weekAgo.toDateString())) weekHours += h;
+  });
+
+  $('stat-today').textContent = hoursFmt(todayHours);
+  $('stat-week').textContent = hoursFmt(weekHours);
+  $('stat-days').textContent = daysLogged;
+}
+
+/* ===================== ADMIN VIEW ===================== */
+function initAdminView(){
+  $('admin-name-tag').textContent = currentProfile.name || 'Admin';
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p=>hide(p));
+      btn.classList.add('active');
+      show($('tab-'+btn.dataset.tab));
+    });
+  });
+  loadAgentsList();
+  loadAllAttendance();
+}
+
+/* --- Add Agent --- */
+$('add-agent-btn').addEventListener('click', async ()=>{
+  const name = $('na-name').value.trim();
+  const empId = $('na-empid').value.trim();
+  const email = $('na-email').value.trim();
+  const password = $('na-password').value;
+  const role = $('na-role').value;
+  hide($('add-agent-error')); hide($('add-agent-ok'));
+
+  if(!name || !empId || !email || !password){
+    $('add-agent-error').textContent = 'Fill in all fields.'; show($('add-agent-error')); return;
+  }
+  if(password.length < 6){
+    $('add-agent-error').textContent = 'Password must be at least 6 characters.'; show($('add-agent-error')); return;
+  }
+
+  const btn = $('add-agent-btn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Creating…';
+
+  try{
+    // Use the secondary app instance so the admin's own session is untouched.
+    const secAuth = secondaryApp.auth();
+    const cred = await secAuth.createUserWithEmailAndPassword(email, password);
+    const newUid = cred.user.uid;
+    await secAuth.signOut();
+
+    await db.collection('agents').doc(newUid).set({
+      name, employeeId: empId, email, role,
+      createdAt: firebase.firestore.Timestamp.now()
+    });
+
+    $('add-agent-ok').textContent = `Agent "${name}" created successfully.`;
+    show($('add-agent-ok'));
+    $('na-name').value=''; $('na-empid').value=''; $('na-email').value=''; $('na-password').value='';
+    loadAgentsList();
+  }catch(err){
+    $('add-agent-error').textContent = friendlyAuthError(err);
+    show($('add-agent-error'));
+  }finally{
+    btn.disabled = false; btn.textContent = orig;
+  }
+});
+
+/* --- Agent List --- */
+async function loadAgentsList(){
+  const body = $('agents-list-body');
+  body.innerHTML = '<tr><td class="empty-row" colspan="4">Loading…</td></tr>';
+  const snap = await db.collection('agents').orderBy('name').get();
+  if(snap.empty){ body.innerHTML='<tr><td class="empty-row" colspan="4">No agents yet.</td></tr>'; return; }
+  let rows='', count=0;
+  snap.forEach(doc=>{
+    const a = doc.data(); count++;
+    rows += `<tr>
+      <td>${a.name||'—'}</td>
+      <td class="mono">${a.employeeId||'—'}</td>
+      <td>${a.email||'—'}</td>
+      <td><span class="tag ${a.role==='admin'?'admin':'agent'}">${a.role||'agent'}</span></td>
+    </tr>`;
+  });
+  body.innerHTML = rows;
+  $('admin-stat-agents').textContent = count;
+}
+
+/* --- All Attendance --- */
+let allAttendanceCache = [];
+
+async function loadAllAttendance(){
+  const body = $('all-attendance-body');
+  body.innerHTML = '<tr><td class="empty-row" colspan="9">Loading…</td></tr>';
+  const snap = await db.collection('attendance').orderBy('date','desc').limit(500).get();
+  allAttendanceCache = [];
+  snap.forEach(doc=> allAttendanceCache.push(doc.data()));
+  renderAttendanceTable(allAttendanceCache);
+
+  const today = dateKey(new Date());
+  const activeNow = allAttendanceCache.filter(r=>r.status==='in').length;
+  const todayCount = allAttendanceCache.filter(r=>r.date===today).length;
+  $('admin-stat-active').textContent = activeNow;
+  $('admin-stat-today').textContent = todayCount;
+}
+
+function renderAttendanceTable(rows){
+  const body = $('all-attendance-body');
+  if(!rows.length){ body.innerHTML='<tr><td class="empty-row" colspan="9">No attendance records.</td></tr>'; return; }
+  let html = '';
+  rows.forEach(r=>{
+    const inT = r.clockIn ? fmtClock12(r.clockIn.time.toDate()) : '—';
+    const outT = r.clockOut ? fmtClock12(r.clockOut.time.toDate()) : '—';
+    const inLoc = r.clockIn ? shortAddr(r.clockIn.address) : '—';
+    const outLoc = r.clockOut ? shortAddr(r.clockOut.address) : '—';
+    html += `<tr>
+      <td>${r.date}</td>
+      <td>${r.name||'—'}</td>
+      <td class="mono">${r.employeeId||'—'}</td>
+      <td class="mono">${inT}</td>
+      <td style="max-width:200px;">${inLoc}</td>
+      <td class="mono">${outT}</td>
+      <td style="max-width:200px;">${outLoc}</td>
+      <td class="mono">${hoursFmt(r.workingHours)}</td>
+      <td><span class="tag ${r.status}">${r.status==='in'?'In Progress':'Complete'}</span></td>
+    </tr>`;
+  });
+  body.innerHTML = html;
+}
+
+function shortAddr(a){
+  if(!a) return '—';
+  return a.length > 40 ? a.slice(0,40)+'…' : a;
+}
+
+function applyAttendanceFilters(){
+  const dateVal = $('filt-date').value;
+  const search = $('filt-search').value.trim().toLowerCase();
+  let filtered = allAttendanceCache;
+  if(dateVal) filtered = filtered.filter(r=>r.date===dateVal);
+  if(search) filtered = filtered.filter(r=>
+    (r.name||'').toLowerCase().includes(search) || (r.employeeId||'').toLowerCase().includes(search));
+  renderAttendanceTable(filtered);
+}
+$('filt-date').addEventListener('change', applyAttendanceFilters);
+$('filt-search').addEventListener('input', applyAttendanceFilters);
+
+/* --- CSV Export --- */
+$('export-csv-btn').addEventListener('click', ()=>{
+  const dateVal = $('filt-date').value;
+  const search = $('filt-search').value.trim().toLowerCase();
+  let rows = allAttendanceCache;
+  if(dateVal) rows = rows.filter(r=>r.date===dateVal);
+  if(search) rows = rows.filter(r=>
+    (r.name||'').toLowerCase().includes(search) || (r.employeeId||'').toLowerCase().includes(search));
+
+  if(!rows.length){ toast('Nothing to export.', 'err'); return; }
+
+  const header = ['Date','Name','Employee ID','Clock In','Clock In Lat','Clock In Lng','Clock In Address','Clock Out','Clock Out Lat','Clock Out Lng','Clock Out Address','Working Hours','Status'];
+  const csvRows = [header.join(',')];
+
+  rows.forEach(r=>{
+    const line = [
+      r.date,
+      csvSafe(r.name),
+      csvSafe(r.employeeId),
+      r.clockIn ? fmtClock12(r.clockIn.time.toDate()) : '',
+      r.clockIn ? r.clockIn.lat : '',
+      r.clockIn ? r.clockIn.lng : '',
+      csvSafe(r.clockIn ? r.clockIn.address : ''),
+      r.clockOut ? fmtClock12(r.clockOut.time.toDate()) : '',
+      r.clockOut ? r.clockOut.lat : '',
+      r.clockOut ? r.clockOut.lng : '',
+      csvSafe(r.clockOut ? r.clockOut.address : ''),
+      r.workingHours != null ? r.workingHours.toFixed(2) : '',
+      r.status
+    ];
+    csvRows.push(line.join(','));
+  });
+
+  const blob = new Blob([csvRows.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attendance_export_${dateKey(new Date())}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('CSV exported.', 'ok');
+});
+
+function csvSafe(v){
+  if(v==null) return '';
+  const s = String(v).replace(/"/g,'""');
+  return /[",\n]/.test(s) ? `"${s}"` : s;
+}
+</script>
+</body>
+</html>
